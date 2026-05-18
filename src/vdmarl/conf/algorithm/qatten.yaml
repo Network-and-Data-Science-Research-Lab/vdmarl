@@ -1,0 +1,14 @@
+defaults:
+  - qatten_config
+  - _self_
+
+variant: "base"
+num_attention_heads: 4
+query_embedding_num_cells: [64, 32]
+key_embedding_num_cells: [32]
+head_weight_num_cells: [64]
+constant_value_num_cells: [32]
+attention_embed_dim: 32
+include_local_q_in_keys: False
+delay_value: True
+loss_function: "l2"

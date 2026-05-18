@@ -1,0 +1,11 @@
+from dataclasses import dataclass, MISSING
+
+
+@dataclass
+class TaskConfig:
+    max_steps: int = MISSING
+    num_good_agents: int = MISSING
+    num_adversaries: int = MISSING
+    num_landmarks: int = MISSING
+    num_food: int = MISSING
+    num_forests: int = MISSING

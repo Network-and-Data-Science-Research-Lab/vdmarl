@@ -1,0 +1,17 @@
+defaults:
+  - qmix_gnn_config
+  - _self_
+
+mixing_embed_dim: 32
+delay_value: True
+loss_function: "l2"
+projection_dim: 64
+gnn_hidden_dim: 32
+num_attention_heads: 4
+gnn_num_layers: 1
+gnn_dropout: 0.0
+graph_topology: "full"
+position_key: null
+knn_k: 3
+edge_radius: null
+self_loops: False

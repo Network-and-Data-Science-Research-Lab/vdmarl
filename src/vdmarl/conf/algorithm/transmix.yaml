@@ -1,0 +1,16 @@
+defaults:
+  - transmix_config
+  - _self_
+
+num_transformer_layers: 2
+num_attention_heads: 4
+embedding_dim: 128
+feedforward_dim: 256
+agent_context_num_cells: [128]
+state_embedding_num_cells: [128]
+skip_bottleneck_dim: 128
+dropout: 0.0
+use_previous_action: True
+use_skip_connection: True
+delay_value: True
+loss_function: "l2"

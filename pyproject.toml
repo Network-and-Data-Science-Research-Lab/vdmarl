@@ -1,0 +1,26 @@
+[project]
+name = "vdmarl"
+version = "0.1.0"
+description = "Value-decomposition MARL experimentation library based on BenchMARL."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "hydra-core>=1.3.2",
+    "id-marl-eval>=0.0.4",
+    "matplotlib>=3.10.9",
+    "numpy>=2.2.6",
+    "omegaconf>=2.3.0",
+    "pyyaml>=6.0.3",
+    "tensordict>=0.12.3",
+    "torch>=2.12.0",
+    "torchrl>=0.12.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.14,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+]

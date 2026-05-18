@@ -1,0 +1,14 @@
+defaults:
+  - avdnet_config
+  - _self_
+
+num_attention_heads: 4
+attention_embed_dim: 32
+agent_embedding_num_cells: [64]
+attention_weight_num_cells: [64]
+head_weight_num_cells: [64]
+state_bias_num_cells: [32]
+use_previous_action: True
+positive_eps: 1e-10
+delay_value: True
+loss_function: "l2"

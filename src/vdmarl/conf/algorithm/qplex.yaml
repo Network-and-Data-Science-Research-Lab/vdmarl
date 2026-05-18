@@ -1,0 +1,11 @@
+defaults:
+  - qplex_config
+  - _self_
+
+num_attention_heads: 4
+transformation_mlp_num_cells: [64]
+attention_mlp_num_cells: [64]
+delay_value: True
+loss_function: "l2"
+positive_eps: 1e-10
+stop_local_advantage_gradient: True

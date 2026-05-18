@@ -1,0 +1,11 @@
+defaults:
+  - qtran_config
+  - _self_
+
+variant: "base"
+joint_mlp_num_cells: [64, 64]
+state_mlp_num_cells: [64, 64]
+delay_value: True
+loss_function: "l2"
+lambda_opt: 1.0
+lambda_nopt: 1.0
