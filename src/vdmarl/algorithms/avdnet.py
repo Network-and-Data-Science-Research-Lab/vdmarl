@@ -82,10 +82,11 @@ class _AVDNetPreviousActionTransform(Transform):
 
     def transform_observation_spec(self, observation_spec: Composite) -> Composite:
         observation_spec = observation_spec.clone()
+        group_shape = observation_spec[self.group].shape
         observation_spec.set(
             (self.group, self.key),
             Unbounded(
-                shape=(self.n_agents, self.n_actions),
+                shape=(*group_shape, self.n_actions),
                 device=observation_spec.device,
             ),
         )
@@ -312,7 +313,7 @@ class AVDNetLoss(LossModule):
 
         loss_td = self._distance(q_tot, target_q_tot).mean()
         td_error = (q_tot - target_q_tot).detach().abs().squeeze(-1)
-        tensordict.set((self.group, "td_error"), td_error)
+        tensordict.set((self.group, "td_error"), td_error.unsqueeze(-1).expand(*td_error.shape, self.n_agents))
 
         return TensorDict(
             {
@@ -686,7 +687,7 @@ class Avdnet(Algorithm):
         if self.use_previous_action:
             group_spec.set(
                 AVDNET_PREVIOUS_ACTION_KEY,
-                Unbounded(shape=(n_agents, n_actions), device=self.device),
+                Unbounded(shape=(*group_spec.shape, n_actions), device=self.device),
             )
         return group_spec
 
@@ -746,6 +747,7 @@ class AvdnetConfig(AlgorithmConfig):
             raise ValueError("AVD-Net num_attention_heads must be greater than 0")
         if self.attention_embed_dim <= 0:
             raise ValueError("AVD-Net attention_embed_dim must be greater than 0")
+        self.positive_eps = float(self.positive_eps)
         if self.positive_eps <= 0:
             raise ValueError("AVD-Net positive_eps must be greater than 0")
         if self.loss_function not in ("l1", "l2", "smooth_l1"):

@@ -58,8 +58,12 @@ class WQMIXMixer(nn.Module):
         )
 
     def forward(self, context: torch.Tensor, local_values: torch.Tensor) -> torch.Tensor:
-        value = self.mixer(local_values, context)
-        if value.shape == local_values.shape[:-1]:
+        if local_values.shape[-1] != 1:
+            local_values_unsqueezed = local_values.unsqueeze(-1)
+        else:
+            local_values_unsqueezed = local_values
+        value = self.mixer(local_values_unsqueezed, context)
+        if value.shape == local_values_unsqueezed.shape[:-1]:
             value = value.unsqueeze(-1)
         return value
 
@@ -209,7 +213,7 @@ class WQMIXLoss(LossModule):
         loss = loss_qtot + loss_qstar
 
         td_error = (q_tot - target).detach().abs().squeeze(-1)
-        tensordict.set((self.group, "td_error"), td_error)
+        tensordict.set((self.group, "td_error"), td_error.unsqueeze(-1).expand(*td_error.shape, self.n_agents))
 
         return TensorDict(
             {

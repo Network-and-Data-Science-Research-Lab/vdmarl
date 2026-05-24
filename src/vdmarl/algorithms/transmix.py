@@ -82,10 +82,11 @@ class _TransMixPreviousActionTransform(Transform):
 
     def transform_observation_spec(self, observation_spec: Composite) -> Composite:
         observation_spec = observation_spec.clone()
+        group_shape = observation_spec[self.group].shape
         observation_spec.set(
             (self.group, self.key),
             Unbounded(
-                shape=(self.n_agents, self.n_actions),
+                shape=(*group_shape, self.n_actions),
                 device=observation_spec.device,
             ),
         )
@@ -433,7 +434,7 @@ class TransMixLoss(LossModule):
 
         loss_td = self._distance(q_tot, target_q_tot).mean()
         td_error = (q_tot - target_q_tot).detach().abs().squeeze(-1)
-        tensordict.set((self.group, "td_error"), td_error)
+        tensordict.set((self.group, "td_error"), td_error.unsqueeze(-1).expand(*td_error.shape, self.n_agents))
 
         return TensorDict(
             {
@@ -818,7 +819,7 @@ class Transmix(Algorithm):
         if self.use_previous_action:
             group_spec.set(
                 TRANSMIX_PREVIOUS_ACTION_KEY,
-                Unbounded(shape=(n_agents, n_actions), device=self.device),
+                Unbounded(shape=(*group_spec.shape, n_actions), device=self.device),
             )
         return group_spec
 

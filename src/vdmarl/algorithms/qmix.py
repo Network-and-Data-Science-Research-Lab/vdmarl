@@ -115,6 +115,7 @@ class Qmix(Algorithm):
             ],
             spec=self.action_spec[group, "action"],
             action_space=None,
+            strict_shape=False,
         )
 
         return TensorDictSequential(actor_module, value_module)

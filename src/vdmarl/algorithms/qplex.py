@@ -260,7 +260,7 @@ class QPLEXLoss(LossModule):
 
         loss_td = self._distance(q_tot, target_q_tot).mean()
         td_error = (q_tot - target_q_tot).detach().abs().squeeze(-1)
-        tensordict.set((self.group, "td_error"), td_error)
+        tensordict.set((self.group, "td_error"), td_error.unsqueeze(-1).expand(*td_error.shape, self.n_agents))
 
         return TensorDict(
             {
@@ -585,6 +585,7 @@ class QplexConfig(AlgorithmConfig):
             raise ValueError(
                 "QPLEX loss_function must be one of 'l1', 'l2' or 'smooth_l1'"
             )
+        self.positive_eps = float(self.positive_eps)
         if self.positive_eps <= 0:
             raise ValueError("QPLEX positive_eps must be greater than 0")
 

@@ -17,8 +17,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from tensordict import TensorDictBase
 from tensordict.nn import TensorDictSequential
-from torchrl.collectors import SyncDataCollector
-
+from torchrl.collectors import Collector
 from torchrl.envs import ParallelEnv, SerialEnv, TransformedEnv
 from torchrl.envs.transforms import Compose
 from torchrl.envs.utils import ExplorationType, set_exploration_type, step_mdp
@@ -38,9 +37,9 @@ from vdmarl.utils import (
     seed_everything,
 )
 
-_has_hydra = importlib.util.find_spec("hydra") is not None
-if _has_hydra:
-    from hydra.core.hydra_config import HydraConfig
+# _has_hydra = importlib.util.find_spec("hydra") is not None
+# if _has_hydra:
+#     from hydra.core.hydra_config import HydraConfig
 
 
 @dataclass
@@ -525,7 +524,7 @@ class Experiment(CallbackNotifier):
             self.group_policies.update({group: group_policy[0]})
 
         if not self.config.collect_with_grad:
-            self.collector = SyncDataCollector(
+            self.collector = Collector(
                 self.env_func,
                 self.policy,
                 device=self.config.sampling_device,
@@ -567,11 +566,7 @@ class Experiment(CallbackNotifier):
             # Otherwise, the user is not restoring and did not specify a save_folder so we save in the hydra directory
             # of the experiment or in the directory where the experiment was run (if hydra is not used)
             else:
-                if _has_hydra and HydraConfig.initialized():
-                    save_folder = Path(HydraConfig.get().runtime.output_dir)
-                else:
-                    save_folder = Path(os.getcwd())
-                # save_folder = Path(HydraConfig.get().runtime.output_dir)
+                save_folder = Path(os.getcwd())
 
         if self.config.restore_file is None:
             self.name = generate_exp_name(

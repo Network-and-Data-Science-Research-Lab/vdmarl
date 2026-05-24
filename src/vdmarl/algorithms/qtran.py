@@ -164,7 +164,7 @@ class QTranLoss(LossModule):
 
         loss = loss_td + self.lambda_opt * loss_opt + self.lambda_nopt * loss_nopt
         td_error = (joint_value - target_joint_value).detach().abs().squeeze(-1)
-        tensordict.set((self.group, "td_error"), td_error)
+        tensordict.set((self.group, "td_error"), td_error.unsqueeze(-1).expand(*td_error.shape, self.n_agents))
 
         return TensorDict(
             {
