@@ -13,9 +13,7 @@ import torchrl
 from tensordict import TensorDictBase
 from torch import Tensor
 
-from torchrl.record import TensorboardLogger
-from torchrl.record.loggers import get_logger
-from torchrl.record.loggers.wandb import WandbLogger
+from torchrl.record.loggers.csv import CSVLogger
 
 from vdmarl.environments import Task
 
@@ -32,8 +30,6 @@ class Logger:
         model_name: str,
         group_map: Dict[str, List[str]],
         seed: int,
-        project_name: str,
-        wandb_extra_kwargs: Dict[str, Any],
     ):
         self.experiment_config = experiment_config
         self.algorithm_name = algorithm_name
@@ -55,54 +51,14 @@ class Logger:
         else:
             self.json_writer = None
 
-        self.loggers: List[torchrl.record.loggers.Logger] = []
-        for logger_name in experiment_config.loggers:
-            wandb_project = wandb_extra_kwargs.get("project", project_name)
-            if wandb_project != project_name:
-                raise ValueError(
-                    f"wandb_extra_kwargs.project ({wandb_project}) is different from the project_name ({project_name})"
-                )
-            self.loggers.append(
-                get_logger(
-                    logger_type=logger_name,
-                    logger_name=folder_name,
-                    experiment_name=experiment_name,
-                    wandb_kwargs={
-                        "group": task_name,
-                        "id": experiment_name,
-                        "project": project_name,
-                        **wandb_extra_kwargs,
-                    },
-                )
-            )
+        self.csv_logger = CSVLogger(
+            exp_name="",
+            log_dir=folder_name,
+            video_format="mp4",
+        )
 
     def log_hparams(self, **kwargs):
-        for logger in self.loggers:
-            if isinstance(logger, TensorboardLogger):
-                # Tensorboard does not like nested dictionaries -> flatten them
-                def flatten(dictionary, parent_key="", separator="_"):
-                    items = []
-                    for key, value in dictionary.items():
-                        new_key = parent_key + separator + key if parent_key else key
-                        if isinstance(value, MutableMapping):
-                            items.extend(
-                                flatten(value, new_key, separator=separator).items()
-                            )
-                        elif isinstance(value, Sequence):
-                            for i, v in enumerate(value):
-                                items.append((new_key + separator + str(i), v))
-                        else:
-                            items.append((new_key, value))
-                    return dict(items)
-
-                # Convert any non-supported values
-                for key, value in kwargs.items():
-                    if not isinstance(value, (int, float, str, Tensor)):
-                        kwargs[key] = str(value)
-
-                logger.log_hparams(flatten(kwargs))
-            else:
-                logger.log_hparams(kwargs)
+        self.csv_logger.log_hparams(kwargs)
 
     def log_collection(
         self,
@@ -159,8 +115,6 @@ class Logger:
         return global_episode_rewards.mean().item()
 
     def log_training(self, group: str, training_td: TensorDictBase, step: int):
-        if not len(self.loggers):
-            return
         to_log = {
             f"train/{group}/{key}": value.mean().item()
             for key, value in training_td.items()
@@ -174,9 +128,7 @@ class Logger:
         step: int,
         video_frames: Optional[List] = None,
     ):
-        if (
-            not len(self.loggers) and not self.experiment_config.create_json
-        ) or not len(rollouts):
+        if not len(rollouts):
             return
 
         # Cut rollouts at first done
@@ -225,11 +177,6 @@ class Logger:
                 // self.experiment_config.evaluation_interval,
             )
             json_file = str(self.json_writer.path)
-            for logger in self.loggers:
-                if isinstance(logger, WandbLogger):
-                    logger.experiment.save(
-                        json_file, base_path=os.path.dirname(json_file)
-                    )
 
         self.log(to_log, step=step)
         if video_frames is not None and max_length_rollout_0 > 1:
@@ -238,39 +185,17 @@ class Logger:
                 np.transpose(video_frames, (0, 3, 1, 2)),
                 dtype=torch.uint8,
             ).unsqueeze(0)
-            for logger in self.loggers:
-                if isinstance(logger, WandbLogger):
-                    logger.log_video("eval/video", vid, fps=20, commit=False)
-                else:
-                    # Other loggers cannot deal with odd video sizes so we check if the video dimensions are odd and make them even
-                    for index in (-1, -2):
-                        if vid.shape[index] % 2 != 0:
-                            vid = vid.index_select(
-                                index, torch.arange(1, vid.shape[index])
-                            )
-                    # End of check
-
-                    logger.log_video("eval_video", vid, step=step)
+            self.csv_logger.log_video("eval_video", vid, step=step)
 
     def commit(self):
-        for logger in self.loggers:
-            if isinstance(logger, WandbLogger):
-                logger.experiment.log({}, commit=True)
+        pass
 
     def log(self, dict_to_log: Dict, step: int = None):
-        for logger in self.loggers:
-            if isinstance(logger, WandbLogger):
-                logger.experiment.log(dict_to_log, commit=False)
-            else:
-                for key, value in dict_to_log.items():
-                    logger.log_scalar(key.replace("/", "_"), value, step=step)
+        for key, value in dict_to_log.items():
+            self.csv_logger.log_scalar(key.replace("/", "_"), value, step=step)
 
     def finish(self):
-        for logger in self.loggers:
-            if isinstance(logger, WandbLogger):
-                import wandb
-
-                wandb.finish()
+        pass
 
     def _get_reward(
         self, group: str, td: TensorDictBase, remove_agent_dim: bool = False

@@ -322,7 +322,8 @@ class TransMixMixer(nn.Module):
             mixed_features = mixed_features + self.skip_connection(skip_input).sum(
                 dim=-2
             )
-        return self.output(mixed_features)
+        q_tot = self.output(mixed_features)
+        return q_tot + local_values.sum(dim=-1, keepdim=True)
 
     def token_embeddings(
         self,
@@ -337,7 +338,7 @@ class TransMixMixer(nn.Module):
 
 
 class TransMixLoss(LossModule):
-    """TD loss for TransMix with target-policy greedy bootstrap."""
+    """TD loss for TransMix with Double Q-learning bootstrap."""
 
     def __init__(
         self,
@@ -406,16 +407,28 @@ class TransMixLoss(LossModule):
 
         with torch.no_grad():
             next_td = tensordict.get("next").clone()
-            next_policy_td = self._run_policy(next_td, target=True)
-            next_action_values = self._canonical_action_values(
-                next_policy_td.get((self.group, "action_value"))
+            
+            # Online policy for action selection (Double Q-learning)
+            online_next_policy_td = self._run_policy(next_td.clone(), target=False)
+            online_next_action_values = self._canonical_action_values(
+                online_next_policy_td.get((self.group, "action_value"))
             )
             next_action_mask = self._canonical_mask(
                 self._get_optional(next_td, (self.group, "action_mask"))
             )
-            _, next_local_values = self._greedy_actions(
-                next_action_values, next_action_mask
+            next_action_index, _ = self._greedy_actions(
+                online_next_action_values, next_action_mask
             )
+            
+            # Target policy for action evaluation
+            next_policy_td = self._run_policy(next_td, target=True)
+            next_action_values = self._canonical_action_values(
+                next_policy_td.get((self.group, "action_value"))
+            )
+            next_local_values = self._chosen_action_values(
+                next_action_values, next_action_index
+            )
+            
             next_q_tot = self._mix(
                 context=self._context(tensordict, next=True),
                 agent_features=self._agent_features(tensordict, next=True),

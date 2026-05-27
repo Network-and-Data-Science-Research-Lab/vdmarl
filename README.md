@@ -29,14 +29,8 @@ VDMARL is a value-decomposition-focused MARL experimentation library based on Be
 
 ## Usage
 
-### Command Line (Hydra)
-You can run an experiment directly from the command line using Hydra configurations:
-```bash
-python src/vdmarl/run.py algorithm=qmix task=vmas/balance
-```
-
 ### Python Script
-You can also run experiments directly using the Python API. For example, using the `Benchmark` module to run multiple algorithms on multiple tasks sequentially:
+You can run experiments directly using the Python API. For example, using the `Benchmark` module to run multiple algorithms on multiple tasks sequentially:
 ```python
 from vdmarl.algorithms import QmixConfig, VdnConfig
 from vdmarl.benchmark import Benchmark

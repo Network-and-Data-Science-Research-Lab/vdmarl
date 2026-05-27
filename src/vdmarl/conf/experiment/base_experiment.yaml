@@ -101,19 +101,12 @@ evaluation_deterministic_actions: True
 # If False, evaluation environments will be more random throughout training
 evaluation_static: False
 
-# List of loggers to use, options are: wandb, csv, tensorboard, mflow
-loggers: [csv,wandb]
-# Wandb project name (kept for backward compatibility)
-project_name: "vdmarl"
-# Wandb extra kwargs passed to the WandbLogger (~superset of wandb.init kwargs)
-# WandbLogger includes: offline, save_dir, project, video_fps
-# wandb.init includes: entity, tags, notes, etc.
-wandb_extra_kwargs: {}
+
 # Create a json folder as part of the output in the format of marl-eval
 create_json: True
 
 # Absolute path to the folder where the experiment will log.
-# If null, this will default to the hydra output dir (if using hydra) or to the current folder when the script is run (if not).
+# If null, this will default to the current folder when the script is run.
 # If you are reloading an experiment with "restore_file", this will default to the reloaded experiment folder.
 save_folder: null
 # Absolute path to a checkpoint file where the experiment was saved. If null the experiment is started fresh.

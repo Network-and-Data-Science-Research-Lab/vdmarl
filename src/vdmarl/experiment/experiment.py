@@ -37,9 +37,6 @@ from vdmarl.utils import (
     seed_everything,
 )
 
-# _has_hydra = importlib.util.find_spec("hydra") is not None
-# if _has_hydra:
-#     from hydra.core.hydra_config import HydraConfig
 
 
 @dataclass
@@ -65,6 +62,7 @@ class ExperimentConfig:
     lr: float = MISSING
     adam_eps: float = MISSING
     adam_extra_kwargs: Dict[str, Any] = MISSING
+    clip_grad_norm: bool = MISSING
     clip_grad_norm: bool = MISSING
     clip_grad_val: Optional[float] = MISSING
 
@@ -101,9 +99,6 @@ class ExperimentConfig:
     evaluation_deterministic_actions: bool = MISSING
     evaluation_static: bool = MISSING
 
-    loggers: List[str] = MISSING
-    project_name: str = MISSING
-    wandb_extra_kwargs: Dict[str, Any] = MISSING
     create_json: bool = MISSING
 
     save_folder: Optional[str] = MISSING
@@ -563,8 +558,8 @@ class Experiment(CallbackNotifier):
                 save_folder = Path(
                     self.config.restore_file
                 ).parent.parent.parent.resolve()
-            # Otherwise, the user is not restoring and did not specify a save_folder so we save in the hydra directory
-            # of the experiment or in the directory where the experiment was run (if hydra is not used)
+            # Otherwise, the user is not restoring and did not specify a save_folder,
+            # so we save in the current directory where the script was run.
             else:
                 save_folder = Path(os.getcwd())
 
@@ -616,11 +611,6 @@ class Experiment(CallbackNotifier):
             task_name=self.task_name,
             group_map=self.group_map,
             seed=self.seed,
-            project_name=self.config.project_name,
-            wandb_extra_kwargs={
-                **self.config.wandb_extra_kwargs,
-                "config": hparams_kwargs,
-            },
         )
         self.logger.log_hparams(**hparams_kwargs)
 
@@ -645,7 +635,7 @@ class Experiment(CallbackNotifier):
         self._evaluation_loop()
         self.logger.commit()
         print(
-            f"Evaluation results logged to loggers={self.config.loggers}"
+            f"Evaluation results logged."
             f"{' and to a json file in the experiment folder.' if self.config.create_json else ''}"
         )
 
@@ -749,13 +739,9 @@ class Experiment(CallbackNotifier):
             training_time = time.time() - training_start
 
             # Evaluation
-            if (
-                self.config.evaluation
-                and (
-                    self.total_frames % self.config.evaluation_interval == 0
-                    or self.n_iters_performed == 0
-                )
-                and (len(self.config.loggers) or self.config.create_json)
+            if self.config.evaluation and (
+                self.total_frames % self.config.evaluation_interval == 0
+                or self.n_iters_performed == 0
             ):
                 self._evaluation_loop()
 
