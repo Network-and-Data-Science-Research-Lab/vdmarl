@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass, MISSING
+import math
 from math import prod
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Type
@@ -47,6 +48,7 @@ class InformationInfusionModule(nn.Module):
         knn_k: int,
         edge_radius: Optional[float],
         self_loops: bool,
+        share_params: bool,
         device,
     ):
         super().__init__()
@@ -76,9 +78,22 @@ class InformationInfusionModule(nn.Module):
         self.edge_radius = edge_radius
         self.self_loops = self_loops
         self.gnn_dropout = gnn_dropout
+        self.share_params = share_params
 
         input_features = sum(self._features_from_shape(shape) for shape in observation_shapes)
-        self.projection = nn.Linear(input_features, projection_dim, device=device)
+        if self.share_params:
+            self.projection = nn.Linear(input_features, projection_dim, device=device)
+        else:
+            self.projection_weight = nn.Parameter(
+                torch.empty((n_agents, input_features, projection_dim), device=device)
+            )
+            self.projection_bias = nn.Parameter(
+                torch.empty((n_agents, projection_dim), device=device)
+            )
+            nn.init.kaiming_uniform_(self.projection_weight, a=math.sqrt(5))
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.projection_weight)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            nn.init.uniform_(self.projection_bias, -bound, bound)
 
         gnns: List[nn.Module] = []
         in_channels = projection_dim
@@ -108,12 +123,17 @@ class InformationInfusionModule(nn.Module):
             for value, shape in zip(observations, self.observation_shapes)
         ]
         local_observation = torch.cat(flattened, dim=-1).to(
-            self.projection.weight.dtype
+            self.projection.weight.dtype if self.share_params else self.projection_weight.dtype
         )
         batch_shape = local_observation.shape[:-2]
         batch_size = prod(batch_shape) if len(batch_shape) else 1
 
-        projected = self.projection(local_observation)
+        if self.share_params:
+            projected = self.projection(local_observation)
+        else:
+            projected = torch.einsum('...ai,aip->...ap', local_observation, self.projection_weight)
+            projected = projected + self.projection_bias
+
         x = projected.reshape(batch_size * self.n_agents, self.projection_dim)
 
         if self.graph_topology == "full":
@@ -325,12 +345,13 @@ class QmixGnn(Algorithm):
                 knn_k=self.knn_k,
                 edge_radius=self.edge_radius,
                 self_loops=self.self_loops,
+                share_params=self.experiment_config.share_policy_params,
                 device=self.device,
             ),
             in_keys=observation_keys,
             out_keys=[
                 (group, _QMIX_GNN_AGENT_INPUT),
-                (group, _QMIX_GNN_TEAM_INFO),
+                _QMIX_GNN_TEAM_INFO,
             ],
         )
 
@@ -433,7 +454,7 @@ class QmixGnn(Algorithm):
             state_shape = (self.gnn_hidden_dim,)
             in_keys = [
                 (group, "chosen_action_value"),
-                (group, _QMIX_GNN_TEAM_INFO),
+                _QMIX_GNN_TEAM_INFO,
             ]
 
         mixer = TensorDictModule(
