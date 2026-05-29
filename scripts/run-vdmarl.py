@@ -1,6 +1,6 @@
-from vdmarl.algorithms import QmixConfig, VdnConfig, QplexConfig, QtranConfig, QattenConfig, AvdnetConfig, TransmixConfig, WqmixConfig
+from vdmarl.algorithms import QmixConfig, VdnConfig, QplexConfig, QtranConfig, QattenConfig, AvdnetConfig, TransmixConfig, WqmixConfig, QmixGnnConfig
 from vdmarl.benchmark import Benchmark
-from vdmarl.environments import VmasTask
+from vdmarl.environments import Smacv2Task
 from vdmarl.experiment import ExperimentConfig
 from vdmarl.models.mlp import MlpConfig
 import warnings
@@ -13,9 +13,17 @@ warnings.filterwarnings("ignore", category=FutureWarning, message=".*The default
 
 if __name__ == "__main__":
     experiment_config = ExperimentConfig.get_from_yaml()
-    experiment_config.max_n_frames = 120_000
-
-    experiment_config.render = True
+    
+    # Standard SMAC/SMACv2 evaluation settings from literature (e.g. PyMARL, EPyMARL)
+    # Most papers run for 2M to 10M frames. Using 2M as a standard baseline.
+    experiment_config.max_n_frames = 2_000_000
+    # Evaluate every 10,000 frames
+    experiment_config.evaluation_interval = 10_000
+    # Common to evaluate over 32 test episodes
+    experiment_config.evaluation_episodes = 32
+    
+    # Render is usually disabled for high-throughput benchmarks
+    experiment_config.render = False
     experiment_config.save_folder = "/home/jlcg/projects/vdmarl/scripts/runs"
 
     benchmark = Benchmark(
@@ -28,15 +36,18 @@ if __name__ == "__main__":
             AvdnetConfig.get_from_yaml(),
             TransmixConfig.get_from_yaml(),
             WqmixConfig.get_from_yaml(),
+            QmixGnnConfig.get_from_yaml(),
         ],
         tasks=[
-            VmasTask.BALANCE.get_from_yaml(),
+            Smacv2Task.PROTOSS_5_VS_5.get_from_yaml(),
+            Smacv2Task.TERRAN_5_VS_5.get_from_yaml(),
+            Smacv2Task.ZERG_5_VS_5.get_from_yaml(),
         ],
-        seeds={0},
+        # Standard seed set for statistical significance (3-5 seeds is standard)
+        seeds={0, 1, 2, 3, 4},
         experiment_config=experiment_config,
         model_config=MlpConfig.get_from_yaml(),
         critic_model_config=MlpConfig.get_from_yaml(),
     )
 
     benchmark.run_sequential()
-
