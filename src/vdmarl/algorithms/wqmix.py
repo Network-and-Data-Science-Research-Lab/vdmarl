@@ -180,14 +180,17 @@ class WQMIXLoss(LossModule):
 
         with torch.no_grad():
             next_td = tensordict.get("next").clone()
-            next_policy_td = self._run_policy(next_td, target=True)
-            next_action_values = self._canonical_action_values(
-                next_policy_td.get((self.group, "action_value"))
+            
+            # Online network for action selection (Double Q-Learning)
+            online_next_policy_td = self._run_policy(next_td, target=False)
+            online_next_action_values = self._canonical_action_values(
+                online_next_policy_td.get((self.group, "action_value"))
             )
             next_mask = self._canonical_mask(
                 self._get_optional(next_td, (self.group, "action_mask"))
             )
-            next_greedy_index, _ = self._greedy_actions(next_action_values, next_mask)
+            next_greedy_index, _ = self._greedy_actions(online_next_action_values, next_mask)
+            
             next_context = self._context(tensordict, next=True)
             next_q_star = self._qstar(next_context, next_greedy_index, target=True)
             reward = self._match_value_shape(

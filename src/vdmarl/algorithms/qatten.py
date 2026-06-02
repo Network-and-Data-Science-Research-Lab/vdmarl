@@ -220,16 +220,28 @@ class QAttenLoss(LossModule):
 
         with torch.no_grad():
             next_td = tensordict.get("next").clone()
-            next_policy_td = self._run_policy(next_td, target=True)
-            next_action_values = self._canonical_action_values(
-                next_policy_td.get((self.group, "action_value"))
+            
+            # Online network for action selection (Double Q-Learning)
+            online_next_policy_td = self._run_policy(next_td, target=False)
+            online_next_action_values = self._canonical_action_values(
+                online_next_policy_td.get((self.group, "action_value"))
             )
             next_action_mask = self._canonical_mask(
                 self._get_optional(next_td, (self.group, "action_mask"))
             )
-            next_action_index, next_local_values = self._greedy_actions(
-                next_action_values, next_action_mask
+            next_action_index, _ = self._greedy_actions(
+                online_next_action_values, next_action_mask
             )
+
+            # Target network for value evaluation
+            next_policy_td = self._run_policy(next_td, target=True)
+            next_action_values = self._canonical_action_values(
+                next_policy_td.get((self.group, "action_value"))
+            )
+            next_local_values = self._chosen_action_values(
+                next_action_values, next_action_index
+            )
+            
             next_q_tot = self._mix(
                 context=self._context(tensordict, next=True),
                 agent_features=self._agent_features(tensordict, next=True),

@@ -122,12 +122,18 @@ class QTranLoss(LossModule):
 
         with torch.no_grad():
             next_td = tensordict.get("next").clone()
-            next_policy_td = self._run_policy(next_td, target=True)
-            next_action_values = self._canonical_action_values(
-                next_policy_td.get((self.group, "action_value"))
+            
+            # Online network for action selection (Double Q-Learning)
+            online_next_policy_td = self._run_policy(next_td, target=False)
+            online_next_action_values = self._canonical_action_values(
+                online_next_policy_td.get((self.group, "action_value"))
             )
             next_mask = self._get_optional(next_td, (self.group, "action_mask"))
-            next_greedy_index, _ = self._greedy_actions(next_action_values, next_mask)
+            next_greedy_index, _ = self._greedy_actions(
+                online_next_action_values, next_mask
+            )
+
+            # Target network for value evaluation
             next_context = self._context(tensordict, next=True)
             next_joint_action = self._joint_action_one_hot(next_greedy_index)
             next_joint_value = self._joint_value(
@@ -144,13 +150,16 @@ class QTranLoss(LossModule):
             ) * next_joint_value
 
         loss_td = self._distance(joint_value, target_joint_value).mean()
+        
+        # opt_error = sum(Q_i) - Q_tot.detach() + V(s)
         loss_opt = self._distance(
-            greedy_joint_value - greedy_value_sum + state_value,
+            greedy_value_sum - greedy_joint_value.detach() + state_value,
             torch.zeros_like(greedy_joint_value),
         ).mean()
+        
         if self.variant == "base":
             loss_nopt = self._base_nopt_loss(
-                joint_value=joint_value,
+                joint_value=joint_value.detach(),
                 local_value_sum=local_chosen_value_sum,
                 state_value=state_value,
             )
@@ -298,8 +307,10 @@ class QTranLoss(LossModule):
         local_value_sum: torch.Tensor,
         state_value: torch.Tensor,
     ) -> torch.Tensor:
-        nopt_constraint = joint_value - local_value_sum + state_value
-        return F.relu(-nopt_constraint).pow(2).mean()
+        # PyMARL: nopt_values = sum(Q) - Q_tot + V
+        # Penalize if nopt_values < 0  => clamp(max=0)
+        nopt_error = local_value_sum - joint_value + state_value
+        return nopt_error.clamp(max=0.0).pow(2).mean()
 
     def _alt_nopt_loss(
         self,
@@ -323,7 +334,7 @@ class QTranLoss(LossModule):
         )
         counterfactual_joint_value = self._joint_value(
             counterfactual_context, counterfactual_action, target=False
-        )
+        ).detach()
 
         expanded_action_values = action_values.unsqueeze(-3).expand(
             *action_values.shape[:-2],
@@ -338,13 +349,14 @@ class QTranLoss(LossModule):
         ).squeeze(-1).sum(dim=-1, keepdim=True)
         counterfactual_state_value = state_value.unsqueeze(-2)
 
-        counterfactual_constraint = (
-            counterfactual_joint_value
-            - counterfactual_local_value_sum
+        nopt_error = (
+            counterfactual_local_value_sum
+            - counterfactual_joint_value
             + counterfactual_state_value
         )
-        min_constraint = counterfactual_constraint.min(dim=-2).values
-        return F.relu(-min_constraint).pow(2).mean()
+        # We want nopt_error >= 0. If it's less than 0, penalize.
+        min_nopt_error = nopt_error.min(dim=-2).values
+        return min_nopt_error.clamp(max=0.0).pow(2).mean()
 
     def _distance(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         if self.loss_function == "l1":

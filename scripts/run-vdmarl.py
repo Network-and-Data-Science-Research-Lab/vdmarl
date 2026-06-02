@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore", category=FutureWarning, message=".*The default
 
 if __name__ == "__main__":
     experiment_config = ExperimentConfig.get_from_yaml()
+    experiment_config.create_json = True
     
     # Standard SMAC/SMACv2 evaluation settings from literature (e.g. PyMARL, EPyMARL)
     # Most papers run for 2M to 10M frames. Using 2M as a standard baseline.
@@ -43,8 +44,9 @@ if __name__ == "__main__":
             Smacv2Task.TERRAN_5_VS_5.get_from_yaml(),
             Smacv2Task.ZERG_5_VS_5.get_from_yaml(),
         ],
-        # Standard seed set for statistical significance (3-5 seeds is standard)
-        seeds={0, 1, 2, 3, 4},
+        # Standardised Performance Evaluation Protocol for Cooperative MARL (marl-eval)
+        # recommends N=10 independent training runs/seeds for robust confidence intervals
+        seeds={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
         experiment_config=experiment_config,
         model_config=MlpConfig.get_from_yaml(),
         critic_model_config=MlpConfig.get_from_yaml(),
